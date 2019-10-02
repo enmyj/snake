@@ -2,12 +2,21 @@
 from collections import deque
 import numpy as np
 import random
+import copy
 
 
 #%% Global
 # boundaries (bound left, bound bottom, etc.)
-_BL = _BB = 0
-_BT = _BR = 5
+BL = BB = 0
+BT = BR = 5
+
+# possible movement directions
+MOVEDIRS = {
+    'up': (0, 1),
+    'down': (0, -1),
+    'right': (1, 0),
+    'left': (-1, 0)
+}
 
 
 #%%
@@ -15,7 +24,7 @@ class Snake():
 
     _snake_init_size = 4
 
-    def __init__(self, name: str):
+    def __init__(self, name: str = 'Bob'):
         """ Create da snake
         """
         # give the snake a name, dude
@@ -29,121 +38,107 @@ class Snake():
             self.prevhead = \
             self.tail = \
             self.prevtail = (
-                random.randint(_BB, _BT),
-                random.randint(_BB, _BT)
+                random.randint(BB, BT),
+                random.randint(BB, BT)
             )
         self.snake.append(self.head)
 
         # create dicts for valid head/tail
         # movement/append directions
-        # 
-        # is this legit OOP???
-        # it feels weird that it does something
-        # but there's no return...
-        self._update_valid_opts('tail')
-        self._update_valid_opts('head')
+        self._update_valid_tails()
 
         # init body of snake randomly
         for _ in range(0, self._snake_init_size - 1):
             self._add_random_tail()
 
-    def _update_valid_opts(self, typ: str = 'tail'):
+    def _update_valid_tails(self):
         """
-        Determine valid directions for:
-            - moving the head
-            - appending to the tail
-
-        Is this jank?? It feels kinda jank...
+        Determine valid directions for appending
+        to the tail
         """
-
         # all possible move/append directions
-        options = {
-            'up': (0, 1),
-            'down': (0, -1),
-            'right': (1, 0),
-            'left': (-1, 0)
-        }
+        options = copy.deepcopy(MOVEDIRS)
 
-        # tuple for the head or the tail
-        # depending on what we're updating
-        head_tail = \
-            self.tail if typ == 'tail' else self.head
-        prev_head_tail = \
-            self.prevtail if typ == 'tail' else self.prevhead
-
-        # dir of snake (tail or head)
+        # dir of snake tail
         diff = np.subtract(
-            head_tail,
-            prev_head_tail
+            self.tail,
+            self.prevtail
         )
 
-        # eliminate possibilities that aren't 
+        # eliminate possibilities that aren't
         # options due to overlapping with
         # snake body or going out of bounds
-        if (diff[1] == 1) | (head_tail[1] + 1 > _BT):
+        if (diff[1] == -1) | (self.tail[1] + 1 > BT):
             del options['up']
-        elif (diff[1] == -1) | (head_tail[1] - 1 < _BB):
+        elif (diff[1] == 1) | (self.tail[1] - 1 < BB):
             del options['down']
-        elif (diff[0] == 1) | (head_tail[0] + 1 > _BR):
+        elif (diff[0] == -1) | (self.tail[0] + 1 > BR):
             del options['right']
         else:
             del options['left']
 
-        if typ == 'tail':
-            self.tail_options = options
-        else:
-            self.head_options = options
+        self.tail_options = options
 
     def _add_random_tail(self):
         """
         lengthen snake at the tail end
         in a valid direction
+
+        TODO: edge case where board is full
         """
-        # add new tail in random (valid)
-        # direction
         newdir = random.choice(
             list(self.tail_options.values())
         )
-        newtail = tuple(np.add(self.tail, newdir))
-        self.snake.append(newtail)
+        self.prevtail = self.tail
+        self.tail = tuple(np.add(self.tail, newdir))
 
-        # update stuff
-        self.tail = self.snake[-1]
-        self.prevtail = self.snake[-2]
-        self._update_valid_opts('tail')
+        if len(self.snake) == 1:
+            self.prevhead = self.tail
+        self.snake.append(self.tail)
+
+        self._update_valid_tails()
 
     def move(self, direction: str = None):
         """ move snake in a valid direction
         """
-
         # is there a better way to do this?
         # can I somehow type hint what the options are?
-        if direction not in ['up', 'down', 'left', 'right']:
+        if direction not in MOVEDIRS.keys():
             raise Exception  # invalid direction
 
-        if direction in list(self.head_options.keys()):
-            # update head attributes
-            self.prevhead = self.head
-            self.head = tuple(
-                np.add(
-                    self.head,
-                    self.head_options[direction],
-                )
+        # user input new head
+        newhead = tuple(
+            np.add(self.head, MOVEDIRS[direction])
+        )
+
+        # reverse newhead if direction is directly
+        # towards prevhead
+        if newhead == self.prevhead:
+            d = tuple(i*-1 for i in MOVEDIRS[direction])
+            newhead = tuple(
+                np.add(self.head, d)
             )
 
-            # update snake
+        # ensure head won't be out of bounds
+        # or into any part of snake body
+        conds = [
+            BL < newhead[0] < BR,
+            BB < newhead[1] < BT,
+            newhead not in self.snake
+        ]
+        if not all(conds):
+            raise Exception  # GAME OVER
+        else:
+            # update head
+            self.prevhead = self.head
+            self.head = newhead
             self.snake.appendleft(self.head)
-            self.snake.pop()
 
-            # update tail attributes
+            # update tail
+            self.snake.pop()
             self.tail = self.snake[-1]
             self.prevtail = self.snake[-2]
-
-            # update valid head/tail options
-            self._update_valid_opts('head')
-            self._update_valid_opts('tail')
-        else:
-            raise Exception  # direction not an option
+            self._update_valid_tails()
 
     def eat(self):
         """method for snake to eat food
@@ -154,6 +149,7 @@ class Snake():
 #%%
 s = Snake()
 print(s.snake)
+
 s.move('left')
 print(s.snake)
 
