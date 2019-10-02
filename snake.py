@@ -8,7 +8,7 @@ import copy
 #%% Global
 # boundaries (bound left, bound bottom, etc.)
 BL = BB = 0
-BT = BR = 5
+BT = BR = 16
 
 # possible movement directions
 MOVEDIRS = {
@@ -22,7 +22,7 @@ MOVEDIRS = {
 #%%
 class Snake():
 
-    _snake_init_size = 4
+    _snake_init_size = 5
 
     def __init__(self, name: str = 'Bob'):
         """ Create da snake
@@ -155,8 +155,10 @@ print(s.snake)
 
 class Game():
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self):
+        s = Snake('Forrest')
+
+
 
     # food location
     # snake eating??
