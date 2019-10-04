@@ -11,18 +11,26 @@ BL = BB = 0
 BT = BR = 16
 
 # possible movement directions
+# numpy-style (row, column)
 MOVEDIRS = {
-    'up': (0, 1),
-    'down': (0, -1),
-    'right': (1, 0),
-    'left': (-1, 0)
+    'up': (-1, 0),
+    'down': (1, 0),
+    'right': (0, 1),
+    'left': (0, -1)
+}
+
+OPPOSITES = {
+    'up': 'down',
+    'down': 'up',
+    'left': 'right',
+    'right': 'left'
 }
 
 
 #%%
 class Snake():
 
-    _snake_init_size = 5
+    _init_body_size = 4
 
     def __init__(self, name: str = 'Bob'):
         """ Create da snake
@@ -38,46 +46,23 @@ class Snake():
             self.prevhead = \
             self.tail = \
             self.prevtail = (
-                random.randint(BB, BT),
-                random.randint(BB, BT)
+                random.randint(BB, BT-1),
+                random.randint(BB, BT-1)
             )
         self.snake.append(self.head)
 
-        # create dicts for valid head/tail
-        # movement/append directions
-        self._update_valid_tails()
-
         # init body of snake randomly
-        for _ in range(0, self._snake_init_size - 1):
-            self._add_random_tail()
+        for _ in range(0, self._init_body_size):
+            self.add_random_tail()
 
-    def _update_valid_tails(self):
-        """
-        Determine valid directions for appending
-        to the tail
-        """
-        # all possible move/append directions
-        options = copy.deepcopy(MOVEDIRS)
+        # update prevhead after snake is built
+        self.prevhead = self.snake[1]
 
-        # dir of snake tail
-        diff = np.subtract(
-            self.tail,
-            self.prevtail
+        # find initial snake heading (direction)
+        diff = tuple(
+            np.subtract(self.head, self.prevhead)
         )
-
-        # eliminate possibilities that aren't
-        # options due to overlapping with
-        # snake body or going out of bounds
-        if (diff[1] == -1) | (self.tail[1] + 1 > BT):
-            del options['up']
-        elif (diff[1] == 1) | (self.tail[1] - 1 < BB):
-            del options['down']
-        elif (diff[0] == -1) | (self.tail[0] + 1 > BR):
-            del options['right']
-        else:
-            del options['left']
-
-        self.tail_options = options
+        self.heading = {v:k for k, v in MOVEDIRS.items()}[diff]
 
     def add_random_tail(self):
         """
@@ -86,17 +71,28 @@ class Snake():
 
         TODO: edge case where board is full
         """
+        # new tail must be inside the grid 
+        # and not overlapping with snake body
+        options = {}
+        for k, v in MOVEDIRS.items():
+            newtail = tuple(np.add(self.tail, v))
+            conds = [
+                BL <= newtail[0] < BR,
+                BB <= newtail[1] < BT,
+                newtail not in self.snake
+            ]
+            if all(conds):
+                options[k] = v
+
+        # choose random tail
         newdir = random.choice(
-            list(self.tail_options.values())
+            list(options.values())
         )
+
+        # add tail to snake and update attributes
         self.prevtail = self.tail
         self.tail = tuple(np.add(self.tail, newdir))
-
-        if len(self.snake) == 1:
-            self.prevhead = self.tail
         self.snake.append(self.tail)
-
-        self._update_valid_tails()
 
     def move(self, direction: str = None):
         """ move snake in a valid direction
@@ -106,24 +102,23 @@ class Snake():
         if direction not in MOVEDIRS.keys():
             raise Exception  # invalid direction
 
-        # user input new head
-        newhead = tuple(
-            np.add(self.head, MOVEDIRS[direction])
-        )
-
-        # reverse newhead if direction is directly
-        # towards prevhead
-        if newhead == self.prevhead:
-            d = tuple(i*-1 for i in MOVEDIRS[direction])
+        # if user tries to move the opposite direction 
+        # of the current snake heading, set direction
+        # to current snake heading
+        if OPPOSITES[direction] == self.heading:
             newhead = tuple(
-                np.add(self.head, d)
+                np.add(self.head, MOVEDIRS[OPPOSITES[direction]])
+            )
+        else:
+            newhead = tuple(
+                np.add(self.head, MOVEDIRS[direction])
             )
 
-        # ensure head won't be out of bounds
+        # ensure new head won't be out of bounds
         # or into any part of snake body
         conds = [
-            BL < newhead[0] < BR,
-            BB < newhead[1] < BT,
+            BL <= newhead[0] < BR,
+            BB <= newhead[1] < BT,
             newhead not in self.snake
         ]
         if not all(conds):
@@ -138,16 +133,24 @@ class Snake():
             self.snake.pop()
             self.tail = self.snake[-1]
             self.prevtail = self.snake[-2]
-            self._update_valid_tails()
 
+            # update heading
+            self.heading = direction
+
+    def eat(self):
+        """If snake eats food, make food location the 
+        new head
+        """
+        pass
 
 
 #%%
 s = Snake()
 print(s.snake)
+print(s.heading)
 
-s.move('left')
-print(s.snake)
+# s.move('left')
+# print(s.snake)
 
 
 
@@ -156,16 +159,52 @@ print(s.snake)
 class Game():
 
     def __init__(self):
-        s = Snake('Forrest')
+        self.snake = Snake('Forrest')
+        self.grid = np.zeros((BT+1, BR+1), dtype=np.int32)
+        self._new_food()
 
+        self._draw_grid()
 
+    def _draw_grid(self):
+        # zero out grid
+        self.grid = np.zeros((BT, BR), dtype=np.int32)
 
-    # food location
-    # snake eating??
-    # way to display snake with appropriate numbering
-    # way to display grid with snake on it
+        # draw new snake and food
+        for t in self.snake.snake:
+            if self.foodloc == self.snake.head == t:
+                self.grid[t] =  4
+            elif t == self.snake.head:
+                self.grid[t] = 2
+                self.grid[self.foodloc] = 3
+            else:
+                self.grid[t] = 1
 
+    def _new_food(self):
+        """create food not inside snake body
+        """
+        newfood = (
+            random.randint(BB, BT),
+            random.randint(BB, BT)
+        )
+
+        while newfood in self.snake.snake:
+            newfood = (
+                random.randint(BB, BT),
+                random.randint(BB, BT)
+            )
+
+        self.foodloc = newfood
+
+    def move(self, direction = None):
+        self.snake.move(direction)
+        self._draw_grid()
+
+    
 
 
 #%%
 
+g = Game()
+print(g.grid)
+
+#%%
