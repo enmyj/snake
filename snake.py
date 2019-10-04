@@ -79,7 +79,7 @@ class Snake():
 
         self.tail_options = options
 
-    def _add_random_tail(self):
+    def add_random_tail(self):
         """
         lengthen snake at the tail end
         in a valid direction
@@ -140,10 +140,6 @@ class Snake():
             self.prevtail = self.snake[-2]
             self._update_valid_tails()
 
-    def eat(self):
-        """method for snake to eat food
-        """
-        pass
 
 
 #%%
