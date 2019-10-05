@@ -5,7 +5,7 @@ import numpy as np
 import json
 import random
 import copy
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, HTTPException
 from starlette.responses import HTMLResponse
 
 #%% Global
@@ -29,6 +29,9 @@ OPPOSITES = {
     'right': 'left'
 }
 
+class InvalidDirection(Exception):
+    pass
+
 class GameOver(Exception):
     pass
 
@@ -40,7 +43,7 @@ class Snake():
 
     _init_body_size = 4
 
-    def __init__(self, name: str = 'Bob'):
+    def __init__(self, name: str = None):
         """ Create da snake
         """
         # give the snake a name, dude
@@ -115,7 +118,7 @@ class Snake():
         # is there a better way to do this?
         # can I somehow type hint what the options are?
         if direction not in MOVEDIRS.keys():
-            raise Exception('Invalid Movement Direction')
+            raise InvalidDirection('Invalid Movement Direction')
 
         # if user tries to move the opposite direction 
         # of the current snake heading, set direction
@@ -171,15 +174,20 @@ class Snake():
 #%%
 class Game():
 
-    def __init__(self):
-        self.snake = Snake('Forrest')
+    def __init__(self, name: str = None):
+        self.snake = Snake(name)
         self._new_food()
         self._update_game_and_draw_grid()
 
         self.score = 0
         self.moves = 0
+        self.valid = True
 
     def _update_game_and_draw_grid(self):
+        """Draw snake and food onto grid and perform game logic
+            - Eat food and extend snake
+            - Create new food and draw onto grid
+        """
         # zero out grid
         self.grid = np.zeros((BT, BR), dtype=np.int32)
 
@@ -220,10 +228,14 @@ class Game():
         self._update_game_and_draw_grid()
 
     def render(self):
+        """ Show snake name, score, moves, and grid as HTML
+        """
         df = pd.DataFrame(self.grid)
         html = df.to_html()
 
+        # lol html
         html = \
+            '<h> Snake Name: ' + str(self.snake.name) + '</h><br>' + \
             '<h> Score: ' + str(self.score) + '</h><br>' + \
             '<h> Moves: ' + str(self.moves) + '</h><br><br>' + \
             html
@@ -232,11 +244,46 @@ class Game():
 
 #%% Fast API
 app = FastAPI()
-g = Game()
+g = Game('FAST API SNAKE!!!')
+
+@app.get('/snake/startnew')
+async def startnew(name: str = None):
+    global g
+    g = Game(name)
+
+    return HTMLResponse(g.render())
 
 #%%
-@app.get("/")
+@app.get("/snake/")
 async def get(direction: str = None):
+    """
+    """
+    if not g.valid:
+        return 'Game invalid, start a new one by GET-ing http://api/snake/startnew'
+
     if direction:
-        g.move_snake(direction)
+        try:
+            g.move_snake(direction)
+        except GameOver:
+            g.valid = False
+            raise HTTPException(
+                status_code=404,
+                detail='Game Over'
+            )
+        except InvalidDirection:
+            g.valid = False
+            raise HTTPException(
+                status_code=404,
+                detail='You entered an invalid movement direction'
+            )
+        except Winner:
+            g.valid = False
+            raise HTTPException(
+                status_code=200,
+                detail='You Win!!'
+            )
+        except Exception as ex:
+            g.valid = False
+            raise ex
+
     return HTMLResponse(g.render())
