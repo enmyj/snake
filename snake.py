@@ -6,6 +6,7 @@ import json
 import random
 import copy
 from fastapi import FastAPI, File, UploadFile
+from starlette.responses import HTMLResponse
 
 #%% Global
 # boundaries (bound left, bound bottom, etc.)
@@ -28,6 +29,11 @@ OPPOSITES = {
     'right': 'left'
 }
 
+class GameOver(Exception):
+    pass
+
+class Winner(Exception):
+    pass
 
 #%%
 class Snake():
@@ -57,7 +63,6 @@ class Snake():
         # init body of snake randomly
         for _ in range(0, self._init_body_size):
             self.add_random_tail()
-
 
         # find initial snake heading (direction)
         diff = tuple(
@@ -105,12 +110,12 @@ class Snake():
             foodloc: tuple = None) -> None:
         """ move snake in a valid direction
 
-        TODO: edge case where board is full
+        Also, if snake eats some food, extend snake
         """
         # is there a better way to do this?
         # can I somehow type hint what the options are?
         if direction not in MOVEDIRS.keys():
-            raise Exception  # invalid direction
+            raise Exception('Invalid Movement Direction')
 
         # if user tries to move the opposite direction 
         # of the current snake heading, set direction
@@ -132,15 +137,20 @@ class Snake():
             newhead not in self.snake
         ]
         if not all(conds):
-            raise Exception  # GAME OVER
+            raise GameOver(
+                'You either moved out of bounds or hit the snake'
+            )
         else:
             # eating
             if newhead == foodloc:
-                # make foodloc the new head
-                self.snake.appendleft(foodloc)
-                self.head = self.snake[0]
-                self.prevhead = self.snake[1]
-                self.length = len(self.snake)
+                if self.length == BT*BT-1:
+                    raise Winner('You Win!!')
+                else:
+                    # make foodloc the new head
+                    self.snake.appendleft(foodloc)
+                    self.head = self.snake[0]
+                    self.prevhead = self.snake[1]
+                    self.length = len(self.snake)
 
             # not eating
             else:
@@ -164,24 +174,22 @@ class Game():
     def __init__(self):
         self.snake = Snake('Forrest')
         self._new_food()
-        self._draw_grid()
+        self._update_game_and_draw_grid()
 
-        self.score = (
-            len(self.snake.snake) - self.snake._init_body_size
-        )*100
-
+        self.score = 0
         self.moves = 0
 
-    def _draw_grid(self):
+    def _update_game_and_draw_grid(self):
         # zero out grid
         self.grid = np.zeros((BT, BR), dtype=np.int32)
 
         # draw new snake and food
         for t in self.snake.snake:
-            if self.foodloc == self.snake.head == t:
+            if t == self.snake.head == self.foodloc:
                 self.grid[t] =  4
                 self._new_food()
                 self.grid[self.foodloc] = 3
+                self.score += 100
             elif t == self.snake.head:
                 self.grid[t] = 2
                 self.grid[self.foodloc] = 3
@@ -204,24 +212,23 @@ class Game():
 
         self.foodloc = newfood
 
-    def move_snake(self, direction = None):
+    def move_snake(self, direction: str = None):
         """move snake and redraw grid
         """
         self.snake.move(direction, self.foodloc)
         self.moves += 1
-        self._draw_grid()
+        self._update_game_and_draw_grid()
 
     def render(self):
         df = pd.DataFrame(self.grid)
-        data = df.to_json(orient='values')
+        html = df.to_html()
 
-        output = {
-            'score': self.score,
-            'moves': self.moves,
-            'grid': data
-        }
-        return json.dumps(output)
+        html = \
+            '<h> Score: ' + str(self.score) + '</h><br>' + \
+            '<h> Moves: ' + str(self.moves) + '</h><br><br>' + \
+            html
         
+        return html
 
 #%% Fast API
 app = FastAPI()
@@ -229,10 +236,7 @@ g = Game()
 
 #%%
 @app.get("/")
-async def get():
-    return g.render()
-
-@app.post("/")
-async def post(direction: str = None):
-    g.move_snake(direction)
-    return g.render()
+async def get(direction: str = None):
+    if direction:
+        g.move_snake(direction)
+    return HTMLResponse(g.render())

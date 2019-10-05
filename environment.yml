@@ -1,0 +1,9 @@
+name: snake
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - fastapi
+  - numpy
+  - pandas
+  - uvicorn
