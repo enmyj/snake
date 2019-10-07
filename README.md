@@ -7,5 +7,5 @@ docker build -t snake.
 
 Run:
 ```
-docker run --rm -it -p 8000:8000 snake
+docker run --rm -it -p 80:8000 snake
 ```
