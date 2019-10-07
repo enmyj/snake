@@ -2,7 +2,7 @@ Build:
 
 ```
 cd /path/to/snake
-docker build -t snake.
+docker build -t snake .
 ```
 
 Run:
