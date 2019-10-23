@@ -1,5 +1,5 @@
 FROM continuumio/miniconda3
-EXPOSE 80
+EXPOSE 8000
 
 COPY environment.yml environment.yml
 RUN /opt/conda/bin/conda env update --file environment.yml
