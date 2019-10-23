@@ -30,6 +30,8 @@ OPPOSITES = {
 }
 
 class InvalidDirection(Exception):
+    """ Custom Exception Class for invalid direction
+    """
     pass
 
 class GameOver(Exception):
